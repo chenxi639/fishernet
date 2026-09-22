@@ -1,0 +1,7 @@
+numpy>=2.4,<3
+Pillow>=12,<13
+scikit-learn>=1.9,<2
+threadpoolctl>=3.6,<4
+matplotlib>=3.9,<4
+
+# Install torch and torchvision separately for the CUDA or CPU build on the host.

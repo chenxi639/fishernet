@@ -1,0 +1,89 @@
+"""CPU teaching experiment: paper equations (3)-(10), no training yet.
+
+Run: python step01_fisher.py
+Dependency: numpy. sigma means standard deviation, NOT variance.
+"""
+import numpy as np
+
+
+def encode(x, mu, sigma, weights=None, simplified=False):
+    """Return raw FV [2*K*D] and assignments [M,K] for one image.
+
+    Traditional FV includes mixture weights and Gaussian determinants.
+    The paper's simplified Fisher Layer drops both (eq. 7-10).
+    Layout: all first-order components, then all second-order components.
+    """
+    x, mu, sigma = [np.asarray(a, dtype=np.float64) for a in (x, mu, sigma)]
+    if x.ndim != 2 or mu.ndim != 2 or sigma.shape != mu.shape:
+        raise ValueError('Expected x[M,D], mu[K,D], sigma[K,D].')
+    if x.shape[0] == 0 or mu.shape[0] == 0 or x.shape[1] == 0 or x.shape[1] != mu.shape[1]:
+        raise ValueError('Nonempty arrays with matching descriptor dimension required.')
+    if not all(np.isfinite(a).all() for a in (x, mu, sigma)) or (sigma <= 0).any():
+        raise ValueError('Finite inputs and strictly positive sigma required.')
+    k = mu.shape[0]
+    weights = np.full(k, 1 / k) if weights is None else np.asarray(weights, dtype=np.float64)
+    if weights.shape != (k,) or not np.isfinite(weights).all() or (weights <= 0).any() or not np.isclose(weights.sum(), 1):
+        raise ValueError('weights must be positive and sum to one.')
+
+    # Each patch is compared to every component: [M,K,D].
+    z = (x[:, None, :] - mu[None, :, :]) / sigma[None, :, :]
+    logits = -0.5 * np.sum(z ** 2, axis=-1)
+    if not simplified:
+        logits += np.log(weights)[None, :] - np.log(sigma).sum(axis=-1)[None, :]
+    logits -= logits.max(axis=1, keepdims=True)
+    gamma = np.exp(logits)
+    gamma /= gamma.sum(axis=1, keepdims=True)
+    first = (gamma[:, :, None] * z).mean(axis=0)
+    second = (gamma[:, :, None] * (z ** 2 - 1) / np.sqrt(2)).mean(axis=0)
+    if not simplified:
+        first /= np.sqrt(weights)[:, None]
+        second /= np.sqrt(weights)[:, None]
+    return np.concatenate([first.ravel(), second.ravel()]), gamma
+
+
+def normalize(fv):
+    """Power normalization followed by L2, for exported representations."""
+    powered = np.sign(fv) * np.sqrt(np.abs(fv))
+    return powered / max(np.linalg.norm(powered), 1e-12)
+
+
+def main():
+    # An analytically solvable example from our discussion.
+    a, b = np.array([[-2.], [2.]]), np.array([[0.], [0.]])
+    mu, sigma = np.array([[0.]]), np.array([[1.]])
+    fa, _ = encode(a, mu, sigma)
+    fb, _ = encode(b, mu, sigma)
+    np.testing.assert_allclose(fa, [0, 3 / np.sqrt(2)])
+    np.testing.assert_allclose(fb, [0, -1 / np.sqrt(2)])
+    print('Same average:', a.mean(), b.mean())
+    print('Different raw FV:', fa, fb)
+
+    rng = np.random.default_rng(42)
+    x = rng.normal(size=(100, 256))
+    mu = rng.normal(size=(32, 256))
+    sigma = rng.uniform(0.7, 1.5, size=(32, 256))
+    for simplified in (False, True):
+        fv, gamma = encode(x, mu, sigma, simplified=simplified)
+        assert fv.shape == (16384,) and np.isfinite(fv).all()
+        np.testing.assert_allclose(gamma.sum(axis=1), 1, atol=1e-12)
+        shuffled, _ = encode(x[rng.permutation(len(x))], mu, sigma, simplified=simplified)
+        np.testing.assert_allclose(fv, shuffled, atol=1e-12)
+        duplicated, _ = encode(np.tile(x, (2, 1)), mu, sigma, simplified=simplified)
+        np.testing.assert_allclose(fv, duplicated, atol=1e-12)
+        np.testing.assert_allclose(np.linalg.norm(normalize(fv)), 1)
+        print('Simplified' if simplified else 'Traditional', 'shape:', fv.shape)
+
+    # With equal weights and identical determinants, assignments agree;
+    # raw traditional FV still differs by the global sqrt(K) factor.
+    sigma = np.ones_like(mu)
+    traditional, gt = encode(x, mu, sigma)
+    simplified, gs = encode(x, mu, sigma, simplified=True)
+    np.testing.assert_allclose(gt, gs, atol=1e-12)
+    np.testing.assert_allclose(traditional, np.sqrt(32) * simplified, atol=1e-12)
+    print('PASS: analytic values, dimensions, assignments, order invariance,')
+    print('      repeated-set invariance, normalization, special-case equivalence.')
+    print('This is a NumPy forward reference; backpropagation is not tested yet.')
+
+
+if __name__ == '__main__':
+    main()

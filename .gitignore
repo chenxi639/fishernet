@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# External data, downloaded weights, generated models, and experiment outputs
+datasets/
+weights/
+artifacts/
+runs/
+*.pt
+*.pth
+*.ckpt
+*.npz
+*.npy
+
+# Internal experiment deliberation and large diagnostic sheets
+report/archive/
+report/assets/weak_diagnosis/
+report/assets/*_errors.png
+report/assets/step17_train_*_candidates.png
