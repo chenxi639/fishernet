@@ -1,5 +1,7 @@
 # Deep FisherNet 复现
 
+**状态：2026-09-23阶段结题。** 原理与端到端工程复现完成；本地VOC2012 val最佳81.4932%，论文原协议test结果尚未复现。当前不继续训练或筛选方案。后期实验结论与冻结产物见[结题报告](report/03_joint_training.md)。
+
 这是对论文 **Deep FisherNet for Object Classification** 的阶段性工程复现。项目已经贯通 VOC2012 多标签数据、AlexNet 基线、共享 CNN + SPP 局部描述子、32 成分 Fisher 编码、端到端联合训练和多尺度评估。
 
 ## 当前结果
@@ -106,9 +108,9 @@ python step09_pilot.py --train-images 256 --val-images 256 --epochs 2
 
 过程性讨论、旧方案选择记录、完整错例联系表和逐次运行日志未纳入公开仓库。关键结论均保留了指标、协议、限制和对应的聚合图表。
 
-## 当前限制与下一步
+## 结题范围与未来可选工作
 
 - 论文配置、预训练来源和训练日程尚未完全对齐，不能把当前 mAP 与论文结果直接作单因素比较。
-- 第 6、7 轮差异低于当前统计不确定性，下一轮应从共同 checkpoint 做单变量对照。
-- `bottle`、`pottedplant`、`sofa` 的 train–val AP 差距约 29–31 点，优先验证分类头和 CNN 分组 weight decay、数据增强及类别采样。
+- 第 6、7 轮差异低于当前统计不确定性，若未来重启，应从共同 checkpoint 做单变量对照。
+- `bottle`、`pottedplant`、`sofa` 的 train–val AP 差距约 29–31 点，后续诊断与未采用方案见结题报告。
 - 需要独立保留最终测试协议，避免继续复用验证集造成选择偏差。

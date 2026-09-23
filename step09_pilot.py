@@ -37,6 +37,18 @@ def make_optimizer(param_groups,name):
     if name=='adamw':return torch.optim.AdamW(param_groups,weight_decay=0.)
     raise ValueError(f'unsupported optimizer: {name}')
 
+def validate_decay_precision(optimizer):
+    """Reject requested decay whose multiplier rounds to one in parameter dtype."""
+    for index, group in enumerate(optimizer.param_groups):
+        if not group['weight_decay']:
+            continue
+        for parameter in group['params']:
+            one = torch.ones((), dtype=parameter.dtype, device=parameter.device)
+            if torch.equal(one * (1 - group['lr'] * group['weight_decay']), one):
+                raise ValueError(f'weight decay in group {index} rounds to no change at '
+                                 f'lr={group["lr"]}, decay={group["weight_decay"]}, dtype={parameter.dtype}; '
+                                 'choose an effective decay before starting a full training run')
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--train-images',type=int,default=256)
@@ -101,6 +113,7 @@ def main():
         cfg['validation_longest_side']=480
         cfg['scale_sampling']='uniform per image; independent numpy RNG seed 42 + epoch * 100003'
         before_lr,after_lr=scale_learning_rates(opt,args.lr_scale)
+        validate_decay_precision(opt)
         cfg['learning_rates']=dict(zip(groups,after_lr))
         cfg['applied_lr_scale']=args.lr_scale
         if args.lr_scale!=1.:

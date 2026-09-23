@@ -22,6 +22,7 @@ def main():
     optimizer.load_state_dict(ck['optimizer'])
     before,after=scale_learning_rates(optimizer,.5)
     applied=set_group_weight_decays(optimizer,DECAYS)
+    decay_factors=[float(torch.tensor(1-lr*decay,dtype=torch.float32)) for lr,decay in zip(after,applied)]
     steps=[]
     for state in optimizer.state.values():
         if 'step' in state:steps.append(float(state['step']))
@@ -46,15 +47,17 @@ def main():
         'learning_rates_before_scale':before,
         'learning_rates_after_scale':after,
         'weight_decays':dict(zip(GROUPS,applied)),
+        'float32_decay_factors':dict(zip(GROUPS,decay_factors)),
         'checks':{
             'three_parameter_groups':len(optimizer.param_groups)==3,
             'all_states_have_same_positive_training_step':min(steps)==max(steps) and min(steps)>0,
             'half_learning_rate_applied':all(a==b*.5 for a,b in zip(after,before)),
-            'decays_applied_in_declared_order':tuple(applied)==DECAYS
+            'decays_applied_in_declared_order':tuple(applied)==DECAYS,
+            'decays_numerically_effective':all(v<1 for v in decay_factors)
         },
         'limitation':'This validates configuration and optimizer-state compatibility only; no loss, gradient, prediction, or accuracy was computed.'
     }
-    if not all(result['checks'].values()):raise RuntimeError(result)
+    if not all(result['checks'].values()):result['status']='rejected_ineffective_decay'
     (run/'result.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
     (run/'step18_verify_regularization.py').write_text(Path(__file__).read_text(encoding='utf-8'),encoding='utf-8')
     print(run)

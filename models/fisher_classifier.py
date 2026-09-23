@@ -7,10 +7,19 @@ import torch
 from torch import nn
 from .dense_fisher_encoder import DenseFisherEncoder
 
-def normalize_fisher(x,eps=1e-6):
+def normalize_fisher(x,eps=1e-6,mode='global',num_components=32):
     if eps<=0:raise ValueError('positive epsilon required')
     # Continuous finite derivative at zero; approaches signed sqrt away from zero.
     power=x/torch.sqrt(x.abs()+eps)
+    if mode=='intra':
+        if x.ndim!=2 or x.shape[1]%(2*num_components):
+            raise ValueError('intra normalization requires [B,2*K*D]')
+        blocks=power.reshape(len(x),2,num_components,-1).permute(0,2,1,3)
+        shape=blocks.shape
+        blocks=torch.nn.functional.normalize(blocks.flatten(2),dim=-1,eps=eps).reshape(shape)
+        power=blocks.permute(0,2,1,3).reshape_as(power)
+    elif mode!='global':
+        raise ValueError('normalization mode must be global or intra')
     return torch.nn.functional.normalize(power,p=2,dim=-1,eps=eps)
 
 class FisherClassifier(nn.Module):
